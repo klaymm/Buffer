@@ -145,10 +145,16 @@
             <TranslateTransform x:Name="SurfaceShift" />
         </Grid.RenderTransform>
 
-        <Border CornerRadius="8" Background="{DynamicResource PanelBackgroundBrush}">
-            <Border.Effect>
-                <DropShadowEffect x:Name="PanelShadow" BlurRadius="32" ShadowDepth="8" Direction="270" Color="Black" Opacity="0.45" />
-            </Border.Effect>
+        <!-- Размытая тень кэшируется картинкой: иначе она пересчитывается на каждом кадре прокрутки. -->
+        <Border>
+            <Border.CacheMode>
+                <BitmapCache />
+            </Border.CacheMode>
+            <Border CornerRadius="8" Background="{DynamicResource PanelBackgroundBrush}">
+                <Border.Effect>
+                    <DropShadowEffect x:Name="PanelShadow" BlurRadius="32" ShadowDepth="8" Direction="270" Color="Black" Opacity="0.45" />
+                </Border.Effect>
+            </Border>
         </Border>
 
         <Border CornerRadius="8" BorderThickness="1"
@@ -170,10 +176,10 @@
                          ItemTemplate="{StaticResource ClipTemplate}" ItemContainerStyle="{StaticResource CardStyle}"
                          Background="Transparent" BorderThickness="0" Padding="0" Focusable="False"
                          Foreground="{DynamicResource TextFillColorPrimaryBrush}"
-                         ScrollViewer.CanContentScroll="True"
+                         ScrollViewer.CanContentScroll="False"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
-                         VirtualizingPanel.IsVirtualizing="True"
-                         VirtualizingPanel.VirtualizationMode="Standard"
+                         VirtualizingPanel.IsVirtualizing="False"
+                         VirtualizingPanel.VirtualizationMode="Recycling"
                          VirtualizingPanel.ScrollUnit="Pixel"
                          KeyboardNavigation.DirectionalNavigation="Contained"
                          PreviewMouseWheel="List_PreviewMouseWheel"
@@ -181,7 +187,7 @@
                     <ListBox.Template>
                         <ControlTemplate TargetType="ListBox">
                             <ScrollViewer x:Name="Scroll" Style="{StaticResource OverlayScrollViewer}" Focusable="False"
-                                          CanContentScroll="True" HorizontalScrollBarVisibility="Disabled">
+                                          CanContentScroll="{TemplateBinding ScrollViewer.CanContentScroll}" HorizontalScrollBarVisibility="Disabled">
                                 <ItemsPresenter Margin="16,2,16,6" />
                             </ScrollViewer>
                         </ControlTemplate>

@@ -28,11 +28,6 @@ namespace Buffer
         public static readonly DependencyProperty ShowFocusRingProperty =
             DependencyProperty.Register(nameof(ShowFocusRing), typeof(bool), typeof(FlyoutWindow), new PropertyMetadata(true));
 
-        // Прокрутку списка нельзя анимировать напрямую, поэтому анимируется это свойство.
-        public static readonly DependencyProperty ScrollOffsetProperty =
-            DependencyProperty.Register(nameof(ScrollOffset), typeof(double), typeof(FlyoutWindow),
-                new PropertyMetadata(0.0, (d, e) => ((FlyoutWindow)d).Scroll?.ScrollToVerticalOffset((double)e.NewValue)));
-
         // Панель того же размера, что у Windows. Вокруг неё окно шире: там рисуется тень.
         const double PanelWidth = 360;
         const double PanelHeight = 400;
@@ -41,6 +36,15 @@ namespace Buffer
         const double EnterOffset = 24;
         const double ActionsWidth = 81;
         const double WheelStep = 48;
+
+        // За сколько миллисекунд прокрутка проходит примерно две трети оставшегося пути.
+        const double ScrollEasing = 60;
+
+        // Пока записей немного, все карточки создаются сразу, и прокрутка идёт без рывков.
+        // В большой истории это заняло бы много памяти, поэтому там карточки создаются по мере
+        // прокрутки и переиспользуются. Разные пороги не дают режиму переключаться туда-обратно.
+        const int VirtualizeFrom = 200;
+        const int VirtualizeUntil = 150;
 
         readonly ClipboardHistory _history;
         readonly HashSet<ClipItem> _leaving = new HashSet<ClipItem>();
@@ -52,6 +56,9 @@ namespace Buffer
         bool _wasEmpty;
         bool _scrolling;
         double _scrollTarget;
+        double _scrollPosition;
+        TimeSpan _lastScrollFrame;
+        bool _virtualized;
 
         internal FlyoutWindow(ClipboardHistory history, bool dark)
         {
@@ -61,18 +68,13 @@ namespace Buffer
             DataContext = history;
             ApplyTheme(dark);
             history.PropertyChanged += OnHistoryPropertyChanged;
+            VirtualizingStackPanel.AddCleanUpVirtualizedItemHandler(List, OnCleanUpVirtualizedItem);
         }
 
         public bool ShowFocusRing
         {
             get => (bool)GetValue(ShowFocusRingProperty);
             set => SetValue(ShowFocusRingProperty, value);
-        }
-
-        public double ScrollOffset
-        {
-            get => (double)GetValue(ScrollOffsetProperty);
-            set => SetValue(ScrollOffsetProperty, value);
         }
 
         internal IntPtr Target { get; private set; }
@@ -102,6 +104,7 @@ namespace Buffer
             OpenedFromTray = fromTray;
             ShowFocusRing = !fromTray;
             Collapse(false);
+            UpdateVirtualization();
             PlaceNear(anchor, fromTray);
             Motion.Set(this, OpacityProperty, 0.0);
             Show();
@@ -275,6 +278,7 @@ namespace Buffer
         protected override void OnPreviewMouseDown(MouseButtonEventArgs e)
         {
             ShowFocusRing = false;
+            StopScrolling();
             base.OnPreviewMouseDown(e);
         }
 
@@ -496,6 +500,8 @@ namespace Buffer
             void Remove()
             {
                 _leaving.Remove(item);
+                if (ContainerFor(item) is ListBoxItem leavingContainer)
+                    ResetContainer(leavingContainer);
                 AnimateLayoutChange(() => _history.Remove(item));
                 if (_history.Items.Count == 0)
                     Focus();
@@ -545,11 +551,49 @@ namespace Buffer
 
         void FinishClear()
         {
+            foreach (var container in RealizedContainers().Where(c => c.DataContext is ClipItem item && !item.IsPinned).ToList())
+                ResetContainer(container);
             AnimateLayoutChange(_history.ClearUnpinned);
             if (_history.Items.Count > 0)
                 FocusIndex(0);
             else
                 Focus();
+        }
+
+        void UpdateVirtualization()
+        {
+            int count = _history.Items.Count;
+            bool virtualize = _virtualized ? count >= VirtualizeUntil : count >= VirtualizeFrom;
+            if (virtualize == _virtualized)
+                return;
+            _virtualized = virtualize;
+            VirtualizingPanel.SetIsVirtualizing(List, virtualize);
+            ScrollViewer.SetCanContentScroll(List, virtualize);
+            List.Items.Refresh();
+        }
+
+        void OnCleanUpVirtualizedItem(object sender, CleanUpVirtualizedItemEventArgs e)
+        {
+            if (ReferenceEquals(e.Value, _revealed))
+                _revealed = null;
+            if (e.UIElement is ListBoxItem container)
+                ResetContainer(container);
+        }
+
+        // Удалённая или ушедшая за край карточка может достаться другой записи, поэтому возвращается в исходный вид.
+        void ResetContainer(ListBoxItem container)
+        {
+            if (_pressed == container)
+                _pressed = null;
+            CardState.SetIsPressed(container, false);
+            container.IsHitTestVisible = true;
+            Motion.Set(container, OpacityProperty, 1.0);
+            if (ShiftOf(container) is TranslateTransform shift)
+            {
+                Motion.Set(shift, TranslateTransform.XProperty, 0.0);
+                Motion.Set(shift, TranslateTransform.YProperty, 0.0);
+            }
+            SetActionsVisible(container, false, animate: false);
         }
 
         static void SlideOut(ListBoxItem container, double delay, Action completed)
@@ -603,18 +647,56 @@ namespace Buffer
             _wasEmpty = empty;
         }
 
+        // Щелчок колеса только сдвигает цель, а позиция каждый кадр плавно её догоняет.
+        // Поэтому при быстрой прокрутке скорость меняется непрерывно, без рывков и перезапусков.
         void List_PreviewMouseWheel(object sender, MouseWheelEventArgs e)
         {
             var scroll = Scroll;
             if (scroll == null || scroll.ScrollableHeight <= 0)
                 return;
             e.Handled = true;
+            if (!_scrolling)
+            {
+                _scrollPosition = scroll.VerticalOffset;
+                _scrollTarget = _scrollPosition;
+            }
             double step = WheelStep * Math.Max(1, SystemParameters.WheelScrollLines) / 3.0;
-            double from = _scrolling ? _scrollTarget : scroll.VerticalOffset;
-            _scrollTarget = Math.Max(0, Math.Min(scroll.ScrollableHeight, from - e.Delta / 120.0 * step));
+            _scrollTarget = Math.Max(0, Math.Min(scroll.ScrollableHeight, _scrollTarget - e.Delta / 120.0 * step));
+            if (!Motion.Enabled)
+            {
+                scroll.ScrollToVerticalOffset(_scrollTarget);
+                return;
+            }
+            if (_scrolling)
+                return;
             _scrolling = true;
-            Motion.Double(this, ScrollOffsetProperty, scroll.VerticalOffset, _scrollTarget, 250, Motion.Decelerate,
-                completed: () => _scrolling = false);
+            _lastScrollFrame = TimeSpan.Zero;
+            CompositionTarget.Rendering += OnScrollFrame;
+        }
+
+        void OnScrollFrame(object sender, EventArgs e)
+        {
+            // Событие может прийти несколько раз за один кадр.
+            TimeSpan time = ((RenderingEventArgs)e).RenderingTime;
+            if (time == _lastScrollFrame)
+                return;
+            double elapsed = _lastScrollFrame == TimeSpan.Zero ? 16 : (time - _lastScrollFrame).TotalMilliseconds;
+            _lastScrollFrame = time;
+
+            var scroll = Scroll;
+            if (scroll == null)
+            {
+                StopScrolling();
+                return;
+            }
+            _scrollTarget = Math.Min(_scrollTarget, scroll.ScrollableHeight);
+            _scrollPosition += (_scrollTarget - _scrollPosition) * (1 - Math.Exp(-elapsed / ScrollEasing));
+            if (Math.Abs(_scrollTarget - _scrollPosition) < 0.5)
+            {
+                _scrollPosition = _scrollTarget;
+                StopScrolling();
+            }
+            scroll.ScrollToVerticalOffset(_scrollPosition);
         }
 
         void StopScrolling()
@@ -622,7 +704,7 @@ namespace Buffer
             if (!_scrolling)
                 return;
             _scrolling = false;
-            BeginAnimation(ScrollOffsetProperty, null);
+            CompositionTarget.Rendering -= OnScrollFrame;
         }
 
         void List_ScrollChanged(object sender, ScrollChangedEventArgs e)
