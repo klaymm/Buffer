@@ -1,0 +1,71 @@
+<Window x:Class="Buffer.HotkeyWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Buffer"
+        Title="Buffer"
+        Width="420" SizeToContent="Height"
+        WindowStyle="SingleBorderWindow" ResizeMode="NoResize"
+        WindowStartupLocation="CenterScreen" Topmost="True"
+        Background="Transparent"
+        FontFamily="{StaticResource TextFontFamily}" FontSize="14"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="Grayscale"
+        UseLayoutRounding="True">
+
+    <WindowChrome.WindowChrome>
+        <WindowChrome CaptionHeight="0" GlassFrameThickness="-1" ResizeBorderThickness="0"
+                      CornerRadius="0" UseAeroCaptionButtons="False" />
+    </WindowChrome.WindowChrome>
+
+    <StackPanel>
+        <StackPanel Margin="24,22,24,22" Background="Transparent" MouseLeftButtonDown="Header_MouseLeftButtonDown">
+            <TextBlock Text="{Binding ShortcutTitle, Source={x:Static local:Loc.Instance}}" FontSize="20" FontWeight="SemiBold" />
+            <TextBlock Text="{Binding ShortcutHint, Source={x:Static local:Loc.Instance}}" Margin="0,8,0,0" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+
+            <ItemsControl x:Name="Keys" Margin="0,20,0,0" MinHeight="34" Focusable="False">
+                <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                        <StackPanel Orientation="Horizontal" />
+                    </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+                <ItemsControl.ItemTemplate>
+                    <DataTemplate>
+                        <Border Style="{StaticResource KeyChip}" Margin="0,0,8,0">
+                            <TextBlock Text="{Binding}" HorizontalAlignment="Center" />
+                        </Border>
+                    </DataTemplate>
+                </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Grid x:Name="ErrorPanel" Margin="0,14,0,0" Visibility="Collapsed">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="&#xE7BA;" FontFamily="{StaticResource IconFontFamily}" Margin="0,2,8,0"
+                           Foreground="{DynamicResource SystemFillColorCautionBrush}" />
+                <TextBlock x:Name="ErrorText" Grid.Column="1" TextWrapping="Wrap" />
+            </Grid>
+        </StackPanel>
+
+        <Border Background="{DynamicResource LayerFillColorDefaultBrush}" BorderBrush="{DynamicResource DividerStrokeColorDefaultBrush}"
+                BorderThickness="0,1,0,0" Padding="24">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Style="{StaticResource FluentButton}" MinWidth="96"
+                        Content="{Binding Reset, Source={x:Static local:Loc.Instance}}" Click="Reset_Click" />
+                <Button x:Name="SaveButton" Grid.Column="2" Style="{StaticResource AccentButton}" MinWidth="96" Margin="0,0,8,0"
+                        IsDefault="True" Content="{Binding Save, Source={x:Static local:Loc.Instance}}" Click="Save_Click" />
+                <Button Grid.Column="3" Style="{StaticResource FluentButton}" MinWidth="96" IsCancel="True"
+                        Content="{Binding Cancel, Source={x:Static local:Loc.Instance}}" />
+            </Grid>
+        </Border>
+    </StackPanel>
+</Window>
