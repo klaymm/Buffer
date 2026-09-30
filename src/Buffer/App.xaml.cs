@@ -41,6 +41,8 @@ namespace Buffer
         ThumbnailSpec _thumbnails;
         bool _themeRefreshQueued;
         bool _saveAllOnExit;
+        bool _historyRestored;
+        bool _saveAfterRestore;
 
         protected override void OnStartup(StartupEventArgs e)
         {
@@ -214,6 +216,9 @@ namespace Buffer
             var spec = _thumbnails;
             List<ClipItem> restored = await Task.Run(() => storage.Load(spec));
             _history.AddRestored(restored);
+            _historyRestored = true;
+            if (_saveAfterRestore)
+                SaveHistory();
             _monitor.CaptureNow();
         }
 
@@ -358,8 +363,14 @@ namespace Buffer
 
         // Без галочки на диске остаются только закреплённые элементы, как в Windows.
         // Перед перезапуском с правами администратора сохраняется всё, чтобы новый экземпляр ничего не потерял.
+        // Пока история не прочитана с диска, запись удалила бы ещё не прочитанные файлы, поэтому она ждёт конца загрузки.
         void SaveHistory(bool all = false)
         {
+            if (!_historyRestored)
+            {
+                _saveAfterRestore = true;
+                return;
+            }
             var items = _history.Items.Where(i => all || _settings.SaveEverything || i.IsPinned).ToList();
             _storage.Save(items);
         }
