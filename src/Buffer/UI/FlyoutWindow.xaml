@@ -1,0 +1,201 @@
+<Window x:Class="Buffer.FlyoutWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:Buffer"
+        Title="Buffer"
+        Width="424" Height="464"
+        WindowStyle="None" AllowsTransparency="True" ResizeMode="NoResize"
+        ShowInTaskbar="False" Topmost="True" ShowActivated="True"
+        Background="Transparent"
+        FontFamily="{StaticResource TextFontFamily}" FontSize="14"
+        Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+        TextOptions.TextFormattingMode="Ideal"
+        TextOptions.TextRenderingMode="Grayscale"
+        UseLayoutRounding="True"
+        KeyboardNavigation.TabNavigation="Cycle">
+
+    <Window.Resources>
+        <DataTemplate x:Key="ClipTemplate" DataType="{x:Type local:ClipItem}">
+            <Grid MinHeight="76">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <TextBlock x:Name="TextPreview" Margin="9,9,4,9" Text="{Binding Preview}"
+                           TextWrapping="Wrap" TextTrimming="CharacterEllipsis" MaxHeight="100"
+                           LineHeight="20" LineStackingStrategy="BlockLineHeight" />
+
+                <Border x:Name="ImagePreview" Margin="3,3,4,3" Visibility="Collapsed" CornerRadius="4"
+                        HorizontalAlignment="Left" VerticalAlignment="Top"
+                        Width="{Binding Thumbnail.Width}" Height="{Binding Thumbnail.Height}">
+                    <Border.Background>
+                        <ImageBrush ImageSource="{Binding Thumbnail}" Stretch="Fill" />
+                    </Border.Background>
+                </Border>
+
+                <StackPanel x:Name="FilesPreview" Margin="9,9,4,9" Visibility="Collapsed">
+                    <ItemsControl ItemsSource="{Binding FileEntries}" Focusable="False">
+                        <ItemsControl.ItemTemplate>
+                            <DataTemplate>
+                                <Grid Margin="0,0,0,2">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="Auto" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="{Binding Glyph}" FontFamily="{StaticResource IconFontFamily}" FontSize="16"
+                                               VerticalAlignment="Center" Margin="0,0,8,0"
+                                               Foreground="{DynamicResource TextFillColorSecondaryBrush}" />
+                                    <TextBlock Grid.Column="1" Text="{Binding Name}" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                                </Grid>
+                            </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                    </ItemsControl>
+                    <TextBlock Text="{Binding HiddenFilesText}" FontFamily="{StaticResource SmallTextFontFamily}" FontSize="12" Margin="24,2,0,0"
+                               Foreground="{DynamicResource TextFillColorSecondaryBrush}"
+                               Visibility="{Binding HasHiddenFiles, Converter={StaticResource BoolToVisibility}}" />
+                </StackPanel>
+
+                <Grid Grid.Column="1" Margin="0,3,3,2">
+                    <Button x:Name="MoreButton" Style="{StaticResource SubtleIconButton}" VerticalAlignment="Top"
+                            Content="&#xE712;" Click="More_Click"
+                            ToolTip="{Binding SeeMore, Source={x:Static local:Loc.Instance}}"
+                            AutomationProperties.Name="{Binding SeeMore, Source={x:Static local:Loc.Instance}}" />
+                    <!-- В шрифте значков заливка булавки идёт отдельным глифом без иглы, поэтому она кладётся поверх контура. -->
+                    <Button x:Name="PinButton" Style="{StaticResource SubtleIconButton}" VerticalAlignment="Bottom" Click="Pin_Click"
+                            ToolTip="{Binding PinItem, Source={x:Static local:Loc.Instance}}"
+                            AutomationProperties.Name="{Binding PinItem, Source={x:Static local:Loc.Instance}}">
+                        <Grid>
+                            <TextBlock Text="&#xE718;" />
+                            <TextBlock x:Name="PinFill" Text="&#xE841;" Visibility="Collapsed" />
+                        </Grid>
+                    </Button>
+                </Grid>
+            </Grid>
+
+            <DataTemplate.Triggers>
+                <DataTrigger Binding="{Binding Kind}" Value="Image">
+                    <Setter TargetName="TextPreview" Property="Visibility" Value="Collapsed" />
+                    <Setter TargetName="ImagePreview" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding Kind}" Value="Files">
+                    <Setter TargetName="TextPreview" Property="Visibility" Value="Collapsed" />
+                    <Setter TargetName="FilesPreview" Property="Visibility" Value="Visible" />
+                </DataTrigger>
+                <DataTrigger Binding="{Binding IsPinned}" Value="True">
+                    <Setter TargetName="PinFill" Property="Visibility" Value="Visible" />
+                    <Setter TargetName="PinButton" Property="ToolTip" Value="{Binding UnpinItem, Source={x:Static local:Loc.Instance}}" />
+                    <Setter TargetName="PinButton" Property="AutomationProperties.Name" Value="{Binding UnpinItem, Source={x:Static local:Loc.Instance}}" />
+                </DataTrigger>
+            </DataTemplate.Triggers>
+        </DataTemplate>
+
+        <Style x:Key="CardStyle" TargetType="ListBoxItem">
+            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+            <Setter Property="Foreground" Value="{DynamicResource TextFillColorPrimaryBrush}" />
+            <Setter Property="Margin" Value="0,0,0,10" />
+            <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+            <Setter Property="AutomationProperties.Name" Value="{Binding AccessibleName}" />
+            <Setter Property="Template">
+                <Setter.Value>
+                    <ControlTemplate TargetType="ListBoxItem">
+                        <Grid x:Name="Root">
+                            <Grid x:Name="Body">
+                                <Border x:Name="Card" CornerRadius="8" BorderThickness="1" SnapsToDevicePixels="True"
+                                        Background="{DynamicResource CardBackgroundFillColorDefaultBrush}"
+                                        BorderBrush="{DynamicResource CardStrokeColorDefaultBrush}">
+                                    <ContentPresenter />
+                                </Border>
+                                <Border x:Name="Ring" Margin="-1" CornerRadius="5" BorderThickness="2" IsHitTestVisible="False"
+                                        BorderBrush="{DynamicResource FocusStrokeColorOuterBrush}" Visibility="Collapsed" />
+                            </Grid>
+                            <Button x:Name="DeleteButton" Style="{StaticResource CardActionButton}" HorizontalAlignment="Right" Width="73"
+                                    Content="&#xE74D;" Opacity="0" IsHitTestVisible="False" Focusable="False" Click="DeleteButton_Click"
+                                    ToolTip="{Binding Delete, Source={x:Static local:Loc.Instance}}"
+                                    AutomationProperties.Name="{Binding Delete, Source={x:Static local:Loc.Instance}}" />
+                        </Grid>
+                        <ControlTemplate.Triggers>
+                            <Trigger SourceName="Body" Property="IsMouseOver" Value="True">
+                                <Setter TargetName="Card" Property="Background" Value="{DynamicResource CardBackgroundFillColorHoverBrush}" />
+                            </Trigger>
+                            <Trigger Property="local:CardState.IsPressed" Value="True">
+                                <Setter TargetName="Card" Property="Background" Value="{DynamicResource CardBackgroundFillColorPressedBrush}" />
+                            </Trigger>
+                            <MultiDataTrigger>
+                                <MultiDataTrigger.Conditions>
+                                    <Condition Binding="{Binding IsKeyboardFocused, RelativeSource={RelativeSource Self}}" Value="True" />
+                                    <Condition Binding="{Binding ShowFocusRing, RelativeSource={RelativeSource AncestorType=Window}}" Value="True" />
+                                </MultiDataTrigger.Conditions>
+                                <Setter TargetName="Ring" Property="Visibility" Value="Visible" />
+                            </MultiDataTrigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </Setter.Value>
+            </Setter>
+            <EventSetter Event="PreviewMouseLeftButtonDown" Handler="Card_PreviewMouseLeftButtonDown" />
+            <EventSetter Event="MouseLeftButtonUp" Handler="Card_MouseLeftButtonUp" />
+            <EventSetter Event="MouseLeave" Handler="Card_MouseLeave" />
+            <EventSetter Event="PreviewMouseRightButtonUp" Handler="Card_PreviewMouseRightButtonUp" />
+        </Style>
+    </Window.Resources>
+
+    <!-- Отступы вокруг панели оставлены под тень. -->
+    <Grid x:Name="Surface" Margin="32,24,32,40">
+        <Grid.RenderTransform>
+            <TranslateTransform x:Name="SurfaceShift" />
+        </Grid.RenderTransform>
+
+        <Border CornerRadius="8" Background="{DynamicResource PanelBackgroundBrush}">
+            <Border.Effect>
+                <DropShadowEffect x:Name="PanelShadow" BlurRadius="32" ShadowDepth="8" Direction="270" Color="Black" Opacity="0.45" />
+            </Border.Effect>
+        </Border>
+
+        <Border CornerRadius="8" BorderThickness="1"
+                Background="{DynamicResource PanelBackgroundBrush}" BorderBrush="{DynamicResource PanelBorderBrush}">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <Grid Margin="16,14,16,11" Height="24">
+                    <TextBlock Text="{Binding Clipboard, Source={x:Static local:Loc.Instance}}" VerticalAlignment="Center" Margin="0,2,0,0" />
+                    <Button x:Name="ClearAllButton" HorizontalAlignment="Right" Style="{StaticResource SmallButton}"
+                            Content="{Binding ClearAll, Source={x:Static local:Loc.Instance}}" Click="ClearAll_Click"
+                            Visibility="{Binding HasUnpinned, Converter={StaticResource BoolToVisibility}}" />
+                </Grid>
+
+                <ListBox x:Name="List" Grid.Row="1" ItemsSource="{Binding Items}"
+                         ItemTemplate="{StaticResource ClipTemplate}" ItemContainerStyle="{StaticResource CardStyle}"
+                         Background="Transparent" BorderThickness="0" Padding="0" Focusable="False"
+                         Foreground="{DynamicResource TextFillColorPrimaryBrush}"
+                         ScrollViewer.CanContentScroll="True"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         VirtualizingPanel.IsVirtualizing="True"
+                         VirtualizingPanel.VirtualizationMode="Standard"
+                         VirtualizingPanel.ScrollUnit="Pixel"
+                         KeyboardNavigation.DirectionalNavigation="Contained"
+                         PreviewMouseWheel="List_PreviewMouseWheel"
+                         ScrollViewer.ScrollChanged="List_ScrollChanged">
+                    <ListBox.Template>
+                        <ControlTemplate TargetType="ListBox">
+                            <ScrollViewer x:Name="Scroll" Style="{StaticResource OverlayScrollViewer}" Focusable="False"
+                                          CanContentScroll="True" HorizontalScrollBarVisibility="Disabled">
+                                <ItemsPresenter Margin="16,2,16,6" />
+                            </ScrollViewer>
+                        </ControlTemplate>
+                    </ListBox.Template>
+                </ListBox>
+
+                <StackPanel x:Name="EmptyState" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Center" Margin="40,0,40,24"
+                            Visibility="{Binding IsEmpty, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="{Binding NothingHere, Source={x:Static local:Loc.Instance}}" FontWeight="SemiBold" HorizontalAlignment="Center" />
+                    <TextBlock Text="{Binding NothingHereHint, Source={x:Static local:Loc.Instance}}"
+                               FontFamily="{StaticResource SmallTextFontFamily}" FontSize="12" LineHeight="16"
+                               LineStackingStrategy="BlockLineHeight" TextAlignment="Center" TextWrapping="Wrap" MaxWidth="250" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</Window>
