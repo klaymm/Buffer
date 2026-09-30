@@ -13,7 +13,7 @@
     <ApplicationIcon>Assets\Buffer.ico</ApplicationIcon>
     <Prefer32Bit>false</Prefer32Bit>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <Product>Buffer</Product>
     <AssemblyTitle>Buffer</AssemblyTitle>
     <Company>klaymm</Company>
